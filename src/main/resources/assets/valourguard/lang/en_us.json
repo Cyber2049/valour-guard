@@ -1,0 +1,4 @@
+{
+  "skill.valourguard.brave_guard": "valour guard",
+  "skill.valourguard.brave_guard.tooltip": "Offense is the best defense. You can't move when defending. Instead, using defense during the recovery of a normal attack or using innate skills while defending will consume stamina to concentrate body strength for a forward collision. Using it at the right time can expose enemy attacks, greatly reduce the damage taken, knock back the enemy, and restore your stamina.\n\nAfter exposing attack or  defending attack, your valor value will increase which will let you enter the Valour state when the valor value reaches 100. However, be aware that being attacked will cause you to lose valor value. In the Valour state, you will lose a small amount of valor value every second, and all the pre-attack processes will not be interrupted and the damage taken will be reduced until the valor value returns to 0 to end the Valour state.\n\n\n(Exclusive to Greatswords)"
+}
