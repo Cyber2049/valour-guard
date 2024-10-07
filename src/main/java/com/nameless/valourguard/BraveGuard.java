@@ -267,8 +267,6 @@ public class BraveGuard extends GuardSkill {
         } else {
             executer.playAnimationSynchronized(animations[0], 0.1F);
         }
-        executer.setStamina(executer.getStamina() - this.getConsumption());
-
     }
 
     @Override
@@ -364,7 +362,7 @@ public class BraveGuard extends GuardSkill {
                         setBrave(container.getDataManager().getDataValue(BRAVE) - this.braveCostPerSecond, container, (ServerPlayer) executer.getOriginal());
 
                     //勇气值为0或没有使用大剑时退出勇气状态
-                    if (container.getDataManager().getDataValue(BRAVE) == 0 || (container.getDataManager().getDataValue(BRAVE) > 0 && this.correctWeaponCategoryAndStyle(executer))) {
+                    if (container.getDataManager().getDataValue(BRAVE) == 0 || (container.getDataManager().getDataValue(BRAVE_ACTIVE) && !this.correctWeaponCategoryAndStyle(executer))) {
                         container.getDataManager().setDataSync(BRAVE_ACTIVE, false, (ServerPlayer) executer.getOriginal());
                         setBrave(0, container, (ServerPlayer) executer.getOriginal());
                     }

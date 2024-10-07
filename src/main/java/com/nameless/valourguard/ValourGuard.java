@@ -87,8 +87,8 @@ public class ValourGuard
     };
 
     public static final AnimationProperty.PlaybackTimeModifier FIX_SPEED = (self, entitypatch, speed, elapsedTime) -> {
-        if(elapsedTime < 0.1) {
-            return 0.7F;
+        if(elapsedTime < 0.07) {
+            return 0.5F;
         }
         return 1.05F;
     };
