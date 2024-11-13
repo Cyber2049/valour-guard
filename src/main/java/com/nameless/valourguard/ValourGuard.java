@@ -47,7 +47,7 @@ public class ValourGuard
 
     private void build() {
         HumanoidArmature biped = Armatures.BIPED;
-        COLLISION_RIGHT = new AttackAnimation(0.05F,0.07F,0.08F, 0.2F, 0.8F, ColliderPreset.FIST_FIXED, biped.rootJoint, "biped/skill/collision_right",biped)
+        COLLISION_RIGHT = new AttackAnimation(0F,0.07F,0.08F, 0.2F, 0.8F, ColliderPreset.FIST_FIXED, biped.rootJoint, "biped/skill/collision_right",biped)
                 .addProperty(AnimationProperty.AttackAnimationProperty.FIXED_MOVE_DISTANCE, true)
                 .addProperty(AnimationProperty.AttackPhaseProperty.IMPACT_MODIFIER, ValueModifier.setter(1F))
                 .addProperty(AnimationProperty.AttackPhaseProperty.DAMAGE_MODIFIER, ValueModifier.multiplier(0.1F))
@@ -63,7 +63,7 @@ public class ValourGuard
                 .newTimePair(0F, 0.6F)
                 .addStateRemoveOld(EntityState.CAN_BASIC_ATTACK, false)
                 .addEvents(AnimationEvent.TimeStampedEvent.create(0.2F, DUST, AnimationEvent.Side.CLIENT));
-        COLLISION_LEFT = new AttackAnimation(0.05F,0.05F,0.06F, 0.25F, 1.05F, ColliderPreset.FIST_FIXED, biped.rootJoint, "biped/skill/collision_left",biped)
+        COLLISION_LEFT = new AttackAnimation(0F,0.05F,0.06F, 0.25F, 1.05F, ColliderPreset.FIST_FIXED, biped.rootJoint, "biped/skill/collision_left",biped)
                 .addProperty(AnimationProperty.AttackAnimationProperty.FIXED_MOVE_DISTANCE, true)
                 .addProperty(AnimationProperty.AttackPhaseProperty.IMPACT_MODIFIER, ValueModifier.setter(1F))
                 .addProperty(AnimationProperty.AttackPhaseProperty.DAMAGE_MODIFIER, ValueModifier.multiplier(0.1F))

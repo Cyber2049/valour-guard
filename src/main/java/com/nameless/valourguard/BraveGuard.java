@@ -72,6 +72,8 @@ public class BraveGuard extends GuardSkill {
     private int braveCostPerSecond;
     private int braveCostPerHit;
     private boolean initiate = false;
+    @OnlyIn(Dist.CLIENT)
+    private boolean canExecute = true;
     public static Builder createBraveGuardBuilder() {
         return GuardSkill.createGuardBuilder()
                 .setResource(Resource.STAMINA);
@@ -108,7 +110,7 @@ public class BraveGuard extends GuardSkill {
             if(!this.initiate) return;
             CapabilityItem itemCapability = event.getPlayerPatch().getHoldingItemCapability(InteractionHand.MAIN_HAND);
             //满足铁山靠条件，发包铁山靠
-            if (this.correctWeaponCategoryAndStyle(executer) && this.isExecutableState(event.getPlayerPatch())) {
+            if (this.correctWeaponCategoryAndStyle(executer) && this.isExecutableState(event.getPlayerPatch()) && this.canExecute) {
                 DynamicAnimation animation = executer.getAnimator().getPlayerFor(null).getAnimation();
                 if(container.getDataManager().getDataValue(combocounter) > 0 && executer.getEntityState().getLevel() != 1  && this.resourcePredicate(executer) && !(animation.equals(ValourGuard.COLLISION_RIGHT) || animation.equals(ValourGuard.COLLISION_LEFT))){
                     FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
@@ -155,6 +157,10 @@ public class BraveGuard extends GuardSkill {
                 input.right = false;
                 input.jumping = false;
                 input.shiftKeyDown = false;
+            }
+
+            if(!this.canExecute && event.getPlayerPatch().getEntityState().getLevel() == 0 && !event.getPlayerPatch().getOriginal().isUsingItem()){
+                this.canExecute = true;
             }
         });
 
@@ -222,6 +228,10 @@ public class BraveGuard extends GuardSkill {
             if (container.getExecuter().isLogicalClient()) {
                 Skill skill = event.getSkillContainer().getSkill();
 
+                if(skill.getCategory() == SkillCategories.BASIC_ATTACK && event.getPlayerPatch().getOriginal().isUsingItem()){
+                    this.canExecute = false;
+                }
+
                 if (skill.getCategory() != SkillCategories.WEAPON_INNATE || !this.correctWeaponCategoryAndStyle(executer)) {
                     return;
                 }
@@ -263,9 +273,9 @@ public class BraveGuard extends GuardSkill {
         super.executeOnServer(executer, args);
         if(args.readBoolean()) {
             int c = executer.getSkill(this).getDataManager().getDataValue(combocounter)%2;
-            executer.playAnimationSynchronized(animations[c], 0.05F);
+            executer.playAnimationSynchronized(animations[c], 0.01F);
         } else {
-            executer.playAnimationSynchronized(animations[0], 0.1F);
+            executer.playAnimationSynchronized(animations[0], 0.05F);
         }
     }
 
@@ -355,6 +365,9 @@ public class BraveGuard extends GuardSkill {
             }
 
             if(initiate) {
+                if(executer.getTickSinceLastAction() > 10 && container.getDataManager().getDataValue(combocounter)>0){
+                    container.getDataManager().setDataSync(combocounter, 0, (ServerPlayer) executer.getOriginal() ) ;
+                }
                 int tick = executer.getOriginal().tickCount;
                 if (container.getDataManager().getDataValue(BRAVE_ACTIVE)) {
                     //每秒消耗勇气值

@@ -15,10 +15,11 @@ plugins {
     id 'eclipse'
     id 'maven-publish'
 }
+
 apply plugin: 'net.minecraftforge.gradle'
 
 
-version = '18.5.1'
+version = '18.5.3'
 group = 'com.nameless.valourguard' // http://maven.apache.org/guides/mini/guide-naming-conventions.html
 archivesBaseName = 'valourguard'
 
