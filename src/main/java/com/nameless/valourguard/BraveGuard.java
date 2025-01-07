@@ -8,6 +8,7 @@ import com.nameless.impactful.config.CommonConfig;
 import com.nameless.impactful.network.CameraShake;
 import com.nameless.impactful.network.NetWorkManger;
 import io.netty.buffer.Unpooled;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiComponent;
 import net.minecraft.client.player.Input;
 import net.minecraft.nbt.CompoundTag;
@@ -159,7 +160,7 @@ public class BraveGuard extends GuardSkill {
                 input.shiftKeyDown = false;
             }
 
-            if(!this.canExecute && event.getPlayerPatch().getEntityState().getLevel() == 0 && !event.getPlayerPatch().getOriginal().isUsingItem()){
+            if(!this.canExecute && !ClientEngine.getInstance().controllEngine.isKeyDown(Minecraft.getInstance().options.keyUse)){
                 this.canExecute = true;
             }
         });
@@ -274,6 +275,7 @@ public class BraveGuard extends GuardSkill {
         if(args.readBoolean()) {
             int c = executer.getSkill(this).getDataManager().getDataValue(combocounter)%2;
             executer.playAnimationSynchronized(animations[c], 0.01F);
+
         } else {
             executer.playAnimationSynchronized(animations[0], 0.05F);
         }
