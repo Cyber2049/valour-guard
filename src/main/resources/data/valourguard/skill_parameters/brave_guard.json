@@ -1,7 +1,6 @@
 {
 	"xp_requirement": 8,
 	"penalizer": 0.6,
-	"superior_penalizer": 0.3,
 	"collision_damage_reducer": 0.2,
 	"brave_damage_reducer": 0.6,
 	"consumption": 3.0,
@@ -9,5 +8,9 @@
 	"collision_brave": 30,
 	"block_brave": 3,
 	"brave_cost_per_second": 4,
-	"brave_cost_per_hit": 10
+	"brave_cost_per_hit": 10,
+	"current_penalizer": {
+		"fist": 0.9,
+		"greatsword": 0.3
+	}
 }

@@ -1,6 +1,7 @@
 package com.nameless.valourguard;
 
 
+import com.google.common.collect.Maps;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.datafixers.util.Pair;
@@ -30,7 +31,9 @@ import yesman.epicfight.api.animation.types.StaticAnimation;
 import yesman.epicfight.api.utils.AttackResult;
 import yesman.epicfight.client.ClientEngine;
 import yesman.epicfight.client.gui.BattleModeGui;
+import yesman.epicfight.gameasset.Animations;
 import yesman.epicfight.gameasset.EpicFightSkills;
+import yesman.epicfight.main.EpicFightMod;
 import yesman.epicfight.network.client.CPExecuteSkill;
 import yesman.epicfight.particle.EpicFightParticles;
 import yesman.epicfight.skill.Skill;
@@ -43,6 +46,7 @@ import yesman.epicfight.world.capabilities.entitypatch.LivingEntityPatch;
 import yesman.epicfight.world.capabilities.entitypatch.player.PlayerPatch;
 import yesman.epicfight.world.capabilities.entitypatch.player.ServerPlayerPatch;
 import yesman.epicfight.world.capabilities.item.CapabilityItem;
+import yesman.epicfight.world.capabilities.item.WeaponCategory;
 import yesman.epicfight.world.damagesource.EpicFightDamageSource;
 import yesman.epicfight.world.damagesource.StunType;
 import yesman.epicfight.world.entity.eventlistener.ComboCounterHandleEvent;
@@ -50,9 +54,13 @@ import yesman.epicfight.world.entity.eventlistener.HurtEvent;
 import yesman.epicfight.world.entity.eventlistener.PlayerEventListener;
 
 import javax.annotation.Nullable;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static com.nameless.toybox.common.attribute.ai.ToyBoxAttributes.BLOCK_RATE;
+import static yesman.epicfight.skill.guard.GuardSkill.BlockType.ADVANCED_GUARD;
 
 public class BraveGuard extends GuardSkill {
     private boolean successBlock = false;
@@ -60,11 +68,12 @@ public class BraveGuard extends GuardSkill {
     private static final SkillDataManager.SkillDataKey<Integer> combocounter = SkillDataManager.SkillDataKey.createDataKey(SkillDataManager.ValueType.INTEGER);
     private static final SkillDataManager.SkillDataKey<Boolean> BRAVE_ACTIVE = SkillDataManager.SkillDataKey.createDataKey(SkillDataManager.ValueType.BOOLEAN);
     private static final SkillDataManager.SkillDataKey<Integer> BRAVE = SkillDataManager.SkillDataKey.createDataKey(SkillDataManager.ValueType.INTEGER);
+    private static final Map<WeaponCategory, Float> PENALIZER = Maps.newHashMap();
 
-    private final StaticAnimation[] animations = {ValourGuard.COLLISION_RIGHT, ValourGuard.COLLISION_LEFT};
+
+    //private final StaticAnimation[] animations = {ValourGuard.COLLISION_RIGHT, ValourGuard.COLLISION_LEFT};
     private static final ResourceLocation UI = new ResourceLocation(ValourGuard.MOD_ID, "textures/gui/skills/brave_guard_ui.png");
 
-    private float superiorPenalizer;
     private float collisionDamageReducer;
     private float braveDamageReducer;
     private float recoveryMultiplier;
@@ -73,10 +82,15 @@ public class BraveGuard extends GuardSkill {
     private int braveCostPerSecond;
     private int braveCostPerHit;
     private boolean initiate = false;
-    @OnlyIn(Dist.CLIENT)
     private boolean canExecute = true;
     public static Builder createBraveGuardBuilder() {
         return GuardSkill.createGuardBuilder()
+                .addGuardMotion(CapabilityItem.WeaponCategories.FIST, (capabilityItem, playerPatch) -> ValourGuard.FIST_GUARD_HIT)
+                .addGuardBreakMotion(CapabilityItem.WeaponCategories.FIST, (capabilityItem, playerPatch) -> Animations.BIPED_COMMON_NEUTRALIZED)
+                .addAdvancedGuardMotion(CapabilityItem.WeaponCategories.GREATSWORD, (itemCap, playerpatch) ->
+                        new StaticAnimation[] { ValourGuard.COLLISION_RIGHT, ValourGuard.COLLISION_LEFT })
+                .addAdvancedGuardMotion(CapabilityItem.WeaponCategories.FIST, (itemCap, playerpatch) ->
+                        new StaticAnimation[] { ValourGuard.FIST_COLLISION})
                 .setResource(Resource.STAMINA);
     }
     public BraveGuard(Builder builder) {
@@ -86,7 +100,6 @@ public class BraveGuard extends GuardSkill {
     @Override
     public void setParams(CompoundTag parameters) {
         super.setParams(parameters);
-        this.superiorPenalizer = parameters.getFloat("superior_penalizer");
         this.collisionDamageReducer = parameters.getFloat("collision_damage_reducer");
         this.braveDamageReducer = parameters.getFloat("brave_damage_reducer");
         this.recoveryMultiplier = parameters.getFloat("recovery_multi");
@@ -94,6 +107,17 @@ public class BraveGuard extends GuardSkill {
         this.guardBrave = parameters.getInt("block_brave");
         this.braveCostPerSecond = parameters.getInt("brave_cost_per_second");
         this.braveCostPerHit = parameters.getInt("brave_cost_per_hit");
+        CompoundTag penalizers = parameters.getCompound("current_penalizer");
+
+        for (String categoryName : penalizers.getAllKeys()) {
+            WeaponCategory category = WeaponCategory.ENUM_MANAGER.get(categoryName);
+
+            if (category != null) {
+                PENALIZER.put(category, penalizers.getFloat(categoryName));
+            } else {
+                EpicFightMod.LOGGER.warn("ValourGuard registry error");
+            }
+        }
     }
 
     @Override
@@ -111,9 +135,8 @@ public class BraveGuard extends GuardSkill {
             if(!this.initiate) return;
             CapabilityItem itemCapability = event.getPlayerPatch().getHoldingItemCapability(InteractionHand.MAIN_HAND);
             //满足铁山靠条件，发包铁山靠
-            if (this.correctWeaponCategoryAndStyle(executer) && this.isExecutableState(event.getPlayerPatch()) && this.canExecute) {
-                DynamicAnimation animation = executer.getAnimator().getPlayerFor(null).getAnimation();
-                if(container.getDataManager().getDataValue(combocounter) > 0 && executer.getEntityState().getLevel() != 1  && this.resourcePredicate(executer) && !(animation.equals(ValourGuard.COLLISION_RIGHT) || animation.equals(ValourGuard.COLLISION_LEFT))){
+            if (this.isHoldingWeaponAvailable(executer,itemCapability, ADVANCED_GUARD) && this.isExecutableState(event.getPlayerPatch()) && this.canExecute) {
+                if(ClientEngine.getInstance().controllEngine.isKeyDown(Minecraft.getInstance().options.keySprint) && container.getDataManager().getDataValue(combocounter) > 0 && executer.getEntityState().getLevel() != 1  && this.resourcePredicate(executer)){
                     FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
                     //是否根据连击数区分左右
                     buf.writeBoolean(true);
@@ -126,7 +149,7 @@ public class BraveGuard extends GuardSkill {
                     event.getPlayerPatch().getOriginal().startUsingItem(InteractionHand.MAIN_HAND);
                 }
             }
-            if (!this.correctWeaponCategoryAndStyle(executer) && this.isHoldingWeaponAvailable(event.getPlayerPatch(), itemCapability, BlockType.GUARD) && super.isExecutableState(event.getPlayerPatch())) {
+            if (this.isHoldingWeaponAvailable(event.getPlayerPatch(), itemCapability, BlockType.GUARD) && super.isExecutableState(event.getPlayerPatch())) {
                 event.getPlayerPatch().getOriginal().startUsingItem(InteractionHand.MAIN_HAND);
             }
         });
@@ -136,7 +159,7 @@ public class BraveGuard extends GuardSkill {
             if(!this.initiate) return;
            if(event.getCausal().equals(ComboCounterHandleEvent.Causal.ACTION_ANIMATION_RESET)){
                if(event.getAnimation() instanceof BasicAttackAnimation){
-                   container.getDataManager().setDataSync(combocounter, container.getDataManager().getDataValue(combocounter) + 1, (ServerPlayer)executer.getOriginal());
+                   container.getDataManager().setDataSync(combocounter, event.getNextValue(), (ServerPlayer)executer.getOriginal());
                } else container.getDataManager().setDataSync(combocounter, 0, (ServerPlayer)executer.getOriginal());
            }
            if(event.getCausal().equals(ComboCounterHandleEvent.Causal.TIME_EXPIRED_RESET)){
@@ -147,7 +170,7 @@ public class BraveGuard extends GuardSkill {
         //防御锁定移动
         executer.getEventListener().addEventListener(PlayerEventListener.EventType.MOVEMENT_INPUT_EVENT, EVENT_UUID, (event) -> {
             if(!this.initiate) return;
-            if (executer.getOriginal().isUsingItem() && this.correctWeaponCategoryAndStyle(executer)) {
+            if (executer.getOriginal().isUsingItem() && this.isHoldingWeaponAvailable(executer, executer.getHoldingItemCapability(InteractionHand.MAIN_HAND), ADVANCED_GUARD)) {
                 event.getPlayerPatch().getOriginal().setSprinting(false);
                 Input input = event.getMovementInput();
                 input.forwardImpulse = 0.0F;
@@ -172,7 +195,7 @@ public class BraveGuard extends GuardSkill {
             int attack_level = event.getPlayerPatch().getEntityState().getLevel();
             LivingEntityPatch<?> attackerPatch = EpicFightCapabilities.getEntityPatch(event.getDamageSource().getEntity(), LivingEntityPatch.class);
             //成功铁山靠判定减伤+霸体
-            if((animation.equals(ValourGuard.COLLISION_LEFT) || animation.equals(ValourGuard.COLLISION_RIGHT)) && attack_level == 1){
+            if(attack_level == 1 && animation instanceof CollisionAnimation){
                 successBlock = true;
                 if(event.getDamageSource() instanceof EpicFightDamageSource epicFightDamageSource){
                     epicFightDamageSource.setStunType(StunType.NONE);
@@ -206,7 +229,7 @@ public class BraveGuard extends GuardSkill {
         executer.getEventListener().addEventListener(PlayerEventListener.EventType.DEALT_DAMAGE_EVENT_POST, EXTRA_EVENT_UUID, (event) -> {
             if(!this.initiate) return;
             StaticAnimation animation = event.getDamageSource().getAnimation();
-            if((animation.equals(ValourGuard.COLLISION_RIGHT) || animation.equals(ValourGuard.COLLISION_LEFT)) && successBlock){
+            if(successBlock && animation instanceof CollisionAnimation){
                 EpicFightParticles.AIR_BURST.get().spawnParticleWithArgument(((ServerLevel)executer.getOriginal().level), executer.getOriginal(), event.getTarget());
                 event.getPlayerPatch().setStamina(event.getPlayerPatch().getStamina() + recoveryMultiplier * this.getConsumption());
                 setBrave(container.getDataManager().getDataValue(BRAVE) + this.collisionBrave, container, (ServerPlayer) executer.getOriginal());
@@ -217,7 +240,7 @@ public class BraveGuard extends GuardSkill {
         executer.getEventListener().addEventListener(PlayerEventListener.EventType.DEALT_DAMAGE_EVENT_PRE, EXTRA_EVENT_UUID, (event) -> {
             if(!this.initiate) return;
             StaticAnimation animation = event.getDamageSource().getAnimation();
-            if((animation.equals(ValourGuard.COLLISION_RIGHT) || animation.equals(ValourGuard.COLLISION_LEFT)) && successBlock){
+            if(successBlock && animation instanceof CollisionAnimation){
                 event.getDamageSource().setStunType(StunType.LONG);
                 event.getDamageSource().setImpact(5.0F);
             }
@@ -233,7 +256,7 @@ public class BraveGuard extends GuardSkill {
                     this.canExecute = false;
                 }
 
-                if (skill.getCategory() != SkillCategories.WEAPON_INNATE || !this.correctWeaponCategoryAndStyle(executer)) {
+                if (skill.getCategory() != SkillCategories.WEAPON_INNATE || !this.isHoldingWeaponAvailable(executer, executer.getHoldingItemCapability(InteractionHand.MAIN_HAND), ADVANCED_GUARD)) {
                     return;
                 }
 
@@ -272,13 +295,16 @@ public class BraveGuard extends GuardSkill {
     public void executeOnServer(ServerPlayerPatch executer, FriendlyByteBuf args) {
         if(!this.initiate) return;
         super.executeOnServer(executer, args);
-        if(args.readBoolean()) {
+        CapabilityItem itemCapability = executer.getHoldingItemCapability(InteractionHand.MAIN_HAND);
+        StaticAnimation[] animations = (StaticAnimation[]) this.getGuradMotionMap(ADVANCED_GUARD).getOrDefault(itemCapability.getWeaponCategory(), (a, b) -> null).apply(itemCapability, executer);
+        if(args.readBoolean() && animations.length > 1) {
             int c = executer.getSkill(this).getDataManager().getDataValue(combocounter)%2;
             executer.playAnimationSynchronized(animations[c], 0.01F);
 
         } else {
             executer.playAnimationSynchronized(animations[0], 0.05F);
         }
+        executer.getSkill(this).getDataManager().setDataSync(combocounter, 0 ,executer.getOriginal());
     }
 
     @Override
@@ -290,7 +316,7 @@ public class BraveGuard extends GuardSkill {
                 impact = event.getAmount() / 4F * (1F + k / 2F) * blockrate;
             } else impact = event.getAmount() / 3F * blockrate;
         }
-        super.guard(container, itemCapapbility, event, knockback, impact, this.correctWeaponCategoryAndStyle(event.getPlayerPatch()));
+        super.guard(container, itemCapapbility, event, knockback, impact, this.isHoldingWeaponAvailable(container.getExecuter(),itemCapapbility, ADVANCED_GUARD));
     }
 
     @Override
@@ -324,7 +350,7 @@ public class BraveGuard extends GuardSkill {
 
     @Override
     public float getPenalizer(CapabilityItem itemCap) {
-        return itemCap.getWeaponCategory() == CapabilityItem.WeaponCategories.GREATSWORD ? this.superiorPenalizer : this.penalizer;
+        return PENALIZER.getOrDefault(itemCap.getWeaponCategory(), this.penalizer);
     }
 
     @Override
@@ -377,7 +403,7 @@ public class BraveGuard extends GuardSkill {
                         setBrave(container.getDataManager().getDataValue(BRAVE) - this.braveCostPerSecond, container, (ServerPlayer) executer.getOriginal());
 
                     //勇气值为0或没有使用大剑时退出勇气状态
-                    if (container.getDataManager().getDataValue(BRAVE) == 0 || (container.getDataManager().getDataValue(BRAVE_ACTIVE) && !this.correctWeaponCategoryAndStyle(executer))) {
+                    if (container.getDataManager().getDataValue(BRAVE) == 0 || (container.getDataManager().getDataValue(BRAVE_ACTIVE) && !this.isHoldingWeaponAvailable(executer, executer.getHoldingItemCapability(InteractionHand.MAIN_HAND), ADVANCED_GUARD))) {
                         container.getDataManager().setDataSync(BRAVE_ACTIVE, false, (ServerPlayer) executer.getOriginal());
                         setBrave(0, container, (ServerPlayer) executer.getOriginal());
                     }
@@ -423,12 +449,36 @@ public class BraveGuard extends GuardSkill {
         gui.font.drawShadow(poseStack, String.format("x%.1f", container.getDataManager().getDataValue(PENALTY)), x + 13, y + 15, 16777215);
     }
 
+    @OnlyIn(Dist.CLIENT)
+    @Override
+    public List<Object> getTooltipArgsOfScreen(List<Object> list) {
+        list.clear();
+
+        StringBuilder sb = new StringBuilder();
+        Iterator<WeaponCategory> iter = this.advancedGuardMotions.keySet().iterator();
+
+        while (iter.hasNext()) {
+            sb.append(WeaponCategory.ENUM_MANAGER.toTranslated(iter.next()));
+
+            if (iter.hasNext()) {
+                sb.append(", ");
+            }
+        }
+
+        list.add(sb.toString());
+
+        return list;
+    }
+
     private void setBrave(int count, SkillContainer container, ServerPlayer player){
         container.getDataManager().setDataSync(BRAVE, Mth.clamp(count, 0, 100), player);
     }
 
+    /*
     private boolean correctWeaponCategoryAndStyle(PlayerPatch<?> playerPatch){
         CapabilityItem capabilityItem = playerPatch.getHoldingItemCapability(InteractionHand.MAIN_HAND);
         return capabilityItem.getWeaponCategory().equals(CapabilityItem.WeaponCategories.GREATSWORD) && capabilityItem.getStyle(playerPatch).equals(CapabilityItem.Styles.TWO_HAND);
     }
+
+     */
 }

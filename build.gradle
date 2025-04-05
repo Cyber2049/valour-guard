@@ -19,7 +19,7 @@ plugins {
 apply plugin: 'net.minecraftforge.gradle'
 
 
-version = '18.5.4'
+version = '18.5.5'
 group = 'com.nameless.valourguard' // http://maven.apache.org/guides/mini/guide-naming-conventions.html
 archivesBaseName = 'valourguard'
 

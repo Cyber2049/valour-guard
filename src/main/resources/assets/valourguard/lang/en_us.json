@@ -1,4 +1,4 @@
 {
   "skill.valourguard.brave_guard": "valour guard",
-  "skill.valourguard.brave_guard.tooltip": "You can't move when defending. Instead, using defense during the recovery of a normal attack or using innate skills while defending will consume stamina and perform a forward collision which can expose enemy attacks and enhance yourself at the right time."
+  "skill.valourguard.brave_guard.tooltip": "You can't move when defending. Instead, toggle sprint and using defense during the recovery of a normal attack or using innate skills while defending will consume stamina and perform a forward collision which can expose enemy attacks and enhance yourself at the right time.\n\nAvailable Weapon Types: %s"
 }
